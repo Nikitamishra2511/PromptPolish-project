@@ -1,18 +1,229 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PromptPolish</title>
+    <title>PromptPolish Bot</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+    @import url('https://fonts.googleapis.com/css?family=Comic+Sans+MS');
+
+    #bot-widget {
+        position: fixed;
+        right: 30px;
+        bottom: 30px;
+        background: #a78bfa; /* Mauve */
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(60,60,80,0.18);
+        padding: 22px 18px 10px 18px;
+        width: 370px;
+        z-index: 1000;
+        font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif;
+        display: block;
+        cursor: move; /* for draggable */
+    }
+    .bot-message {
+        margin-bottom: 18px;
+        background: #fffde9;  /* Cream white */
+        border-radius: 12px;
+        padding: 13px 16px;
+        color: #252561;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .polished {
+        margin-top: 8px;
+        background: #f7f7fa;
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #202020;
+        font-size: 1rem;
+    }
+    label, select, input, button {
+        font-family: inherit;
+        font-size: 1rem;
+        margin-top: 6px;
+    }
+    input[type="text"], select {
+        width: 97%;
+        padding: 7px 8px;
+        margin-bottom: 7px;
+        border-radius: 7px;
+        border: 1px solid #c7bfff;
+    }
+    button {
+        background: #fffde9;
+        color: #6d28d9;
+        border: none;
+        border-radius: 7px;
+        padding: 8px 18px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 5px;
+        box-shadow: 0 2px 8px #c7bfff66;
+        transition: background 0.15s;
+    }
+    button:hover {
+        background: #f1e4ff;
+    }
+    #spinner {
+        display: none;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    #toggle-bot {
+        position: fixed;
+        right: 32px;
+        bottom: 32px;
+        z-index: 1100;
+        border-radius: 22px;
+        padding: 8px 18px;
+        background: #a78bfa;
+        color: #fff;
+        font-family: inherit;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 2px 8px #c7bfff66;
+        cursor: pointer;
+    }
+    </style>
 </head>
-<body>
-    <h1>🧠 PromptPolish</h1>
-    <form method="POST">
-        <textarea name="prompt" rows="6" cols="70" placeholder="Paste your raw prompt here..."></textarea><br>
-        <button type="submit">Polish Prompt</button>
-    </form>
-    {% if prompt_output %}
-        <h3>Improved Prompt:</h3>
-        <div style="white-space: pre-wrap;">{{ prompt_output }}</div>
-    {% endif %}
+<body style="background:#eee9f8;">
+
+    <!-- Floating toggle button to open/close the bot -->
+    <button id="toggle-bot" onclick="toggleBot()">Chat</button>
+
+    <div id="bot-widget">
+        <!-- Bot Greeting with Kitten -->
+        <div class="bot-message" style="cursor:move;">
+            <img src="https://cdn.pixabay.com/photo/2017/11/09/21/41/cat-2934720_1280.jpg"
+                 alt="Kitten saying Hi"
+                 style="width:42px; height:42px; border-radius:50%; object-fit:cover; border: 2px solid #a78bfa;">
+            <div>
+                <strong>Bot:</strong> Hi! <span style="font-size:1.4em;">🐾</span> I’m PromptPolish.<br>
+                What prompt do you want to improve today?<br>
+                <span style="font-size:0.99em;color:#af52bf;">(And here’s a kitten saying hi!)</span>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="spinner">
+            <img src="https://i.gifer.com/ZZ5H.gif" alt="Loading..." style="width:38px;">
+            <div style="font-size:1.1em;color:#a78bfa;">Polishing your prompt...</div>
+        </div>
+
+        <!-- Main Form -->
+        <form method="post" id="promptForm" onsubmit="showSpinner()">
+            <div class="bot-message">
+                <label for="purpose"><strong>What are you using the prompt for?</strong></label>
+                <select id="purpose" name="purpose" onchange="suggestModel()" required>
+                    <option value="">Select a purpose...</option>
+                    <option value="writing">Writing</option>
+                    <option value="coding">Coding</option>
+                    <option value="summarizing">Summarizing</option>
+                    <option value="chat">Casual Chat</option>
+                </select>
+            </div>
+            <div class="bot-message">
+                <label for="model"><strong>Which model would you like to use?</strong></label>
+                <select id="model" name="model" required>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo (fast, cheap)</option>
+                    <option value="gpt-4">GPT-4 (best for logic/writing)</option>
+                    <option value="gpt-4o">GPT-4o (latest, fast, good for chat)</option>
+                </select>
+            </div>
+            <div class="bot-message">
+                <label for="prompt"><strong>Paste your prompt below:</strong></label>
+                <input type="text" name="prompt" id="prompt" placeholder="Paste your prompt here" required>
+            </div>
+            <button type="submit">Polish</button>
+        </form>
+
+        <!-- Result and Copy Button -->
+        {% if result %}
+        <div class="bot-message">
+            <strong>Bot:</strong> Here’s your polished prompt!
+            <div class="polished" id="polished-text">{{ result }}</div>
+            <button type="button" onclick="copyPolished()" style="margin-top:8px;">Copy to Clipboard</button>
+        </div>
+        {% endif %}
+
+        <!-- Bot Joke -->
+        {% if joke %}
+        <div class="bot-message">
+            <strong>Bot:</strong> Want a joke about your last prompt?<br>
+            <em>{{ joke }}</em>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- SCRIPTS -->
+    <script>
+    // Model suggestion logic
+    function suggestModel() {
+        const purpose = document.getElementById("purpose").value;
+        const model = document.getElementById("model");
+
+        if (purpose === "coding") model.value = "gpt-4";
+        else if (purpose === "summarizing") model.value = "gpt-3.5-turbo";
+        else if (purpose === "chat") model.value = "gpt-4o";
+        else if (purpose === "writing") model.value = "gpt-4";
+    }
+
+    // Loading spinner logic
+    function showSpinner() {
+        document.getElementById('spinner').style.display = 'block';
+    }
+
+    // Copy to clipboard
+    function copyPolished() {
+        const text = document.getElementById("polished-text").innerText;
+        navigator.clipboard.writeText(text)
+          .then(() => alert("Polished prompt copied!"))
+          .catch(() => alert("Copy failed, please copy manually."));
+    }
+
+    // Collapsible widget
+    function toggleBot() {
+        var widget = document.getElementById('bot-widget');
+        if(widget.style.display === "none") {
+            widget.style.display = "block";
+        } else {
+            widget.style.display = "none";
+        }
+    }
+
+    // Draggable widget
+    (function() {
+      var widget = document.getElementById('bot-widget');
+      var isDown = false;
+      var offset = [0, 0];
+
+      widget.addEventListener('mousedown', function(e) {
+        isDown = true;
+        offset = [
+          widget.offsetLeft - e.clientX,
+          widget.offsetTop - e.clientY
+        ];
+        widget.style.transition = "none";
+      }, true);
+
+      document.addEventListener('mouseup', function() {
+        isDown = false;
+        widget.style.transition = "";
+      }, true);
+
+      document.addEventListener('mousemove', function(event) {
+        event.preventDefault();
+        if (isDown) {
+          widget.style.left = (event.clientX + offset[0]) + 'px';
+          widget.style.top = (event.clientY + offset[1]) + 'px';
+          widget.style.right = 'auto';
+          widget.style.bottom = 'auto';
+          widget.style.position = 'fixed';
+        }
+      }, true);
+    })();
+    </script>
 </body>
 </html>
