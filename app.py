@@ -56,6 +56,3 @@ def index():
             prompt_output = f"Error: {e}"
 
     return render_template("index.html", prompt_output=prompt_output)
-
-if __name__ == "__main__":
-    app.run(debug=True)
